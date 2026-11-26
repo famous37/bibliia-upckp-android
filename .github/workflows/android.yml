@@ -21,6 +21,7 @@ jobs:
         run: ./gradlew --console=plain :app:lintRelease :app:assembleRelease :app:assembleDebug
       - name: Launch reader on Android 17
         run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
           image='system-images;android-37.0;google_apis;x86_64'
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --name bible --package "$image" --device pixel_6

@@ -71,8 +71,11 @@ def main():
     print("Reference lookup and reading controls passed", flush=True)
 
     pid = adb("shell", "pidof", PACKAGE)
-    services = adb("shell", "ps", "-A", "-o", "PID,NAME")
-    renderers = re.findall(r"^\s*(\d+)\s+com\.android\.webview:sandboxed_process\S*", services, re.MULTILINE)
+    services = adb("shell", "ps", "-A", "-o", "PID,ARGS")
+    provider = re.search(r"Current WebView package \(name, version\): \(([^,]+),", adb("shell", "dumpsys", "webviewupdate"))
+    assert provider, "Android did not report an active WebView provider"
+    process = re.escape(provider.group(1)) + r":sandboxed_process\S*"
+    renderers = re.findall(r"^\s*(\d+)\s+" + process, services, re.MULTILINE)
     if len(renderers) != 1:
         raise AssertionError(f"Expected one isolated WebView renderer, found {renderers}")
     adb("shell", "kill", "-9", renderers[0])
