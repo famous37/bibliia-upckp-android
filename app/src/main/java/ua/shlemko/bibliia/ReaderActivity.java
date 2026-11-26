@@ -2,6 +2,7 @@ package ua.shlemko.bibliia;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -12,6 +13,7 @@ import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.*;
@@ -25,13 +27,13 @@ public final class ReaderActivity extends Activity {
     private FrameLayout root;
     private WebView reader;
     private boolean handlingBack;
+    private boolean darkBars;
+    private long lastRendererLoss = -1;
 
-    @Override @SuppressLint("SetJavaScriptEnabled")
+    @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
         root = new FrameLayout(this);
-        reader = new WebView(this);
-        root.addView(reader, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         applyBars(dark);
@@ -44,6 +46,15 @@ public final class ReaderActivity extends Activity {
             });
             root.requestApplyInsets();
         }
+        if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+        openReader();
+    }
+    @SuppressLint("SetJavaScriptEnabled")
+    private void openReader() {
+        if (reader != null || isFinishing() || isDestroyed()) return;
+        reader = new WebView(this);
+        root.addView(reader, new FrameLayout.LayoutParams(-1, -1));
+        applyBars(darkBars);
         WebSettings settings = reader.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -54,14 +65,14 @@ public final class ReaderActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33) settings.setAlgorithmicDarkeningAllowed(false);
         reader.setWebViewClient(new LocalEdition());
         reader.addJavascriptInterface(new Actions(), "BibleAndroid");
-        if (Build.VERSION.SDK_INT >= 33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         reader.loadUrl("https://" + HOST + "/reader/index.html");
     }
     @SuppressWarnings("deprecation")
     private void applyBars(boolean dark) {
+        darkBars = dark;
         int color = Color.parseColor(dark ? "#17201C" : "#FAF8F2");
         root.setBackgroundColor(color);
-        reader.setBackgroundColor(color);
+        if (reader != null) reader.setBackgroundColor(color);
         getWindow().setStatusBarColor(color);
         getWindow().setNavigationBarColor(color);
         if (Build.VERSION.SDK_INT >= 29) {
@@ -74,6 +85,31 @@ public final class ReaderActivity extends Activity {
         decor.setSystemUiVisibility(dark ? flags & ~mask : flags | mask);
     }
     private final class LocalEdition extends WebViewClient {
+        @Override public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            if (reader != view) return true;
+            reader = null;
+            handlingBack = false;
+            root.removeView(view);
+            view.destroy();
+            if (isFinishing() || isDestroyed()) return true;
+
+            long now = SystemClock.elapsedRealtime();
+            boolean firstLoss = lastRendererLoss < 0 || now - lastRendererLoss > 300_000;
+            lastRendererLoss = now;
+            if (firstLoss) {
+                root.post(ReaderActivity.this::openReader);
+            } else {
+                int theme = darkBars ? AlertDialog.THEME_DEVICE_DEFAULT_DARK : AlertDialog.THEME_DEVICE_DEFAULT_LIGHT;
+                new AlertDialog.Builder(ReaderActivity.this, theme)
+                        .setTitle(R.string.recovery_title)
+                        .setMessage(R.string.recovery_message)
+                        .setPositiveButton(R.string.recovery_retry, (dialog, which) -> openReader())
+                        .setNegativeButton(R.string.recovery_exit, (dialog, which) -> finish())
+                        .setOnCancelListener(dialog -> finish())
+                        .show();
+            }
+            return true;
+        }
         @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return true; }
         @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri url = request.getUrl();
@@ -105,18 +141,30 @@ public final class ReaderActivity extends Activity {
     @Override @SuppressLint("GestureBackNavigation") @SuppressWarnings("deprecation")
     public void onBackPressed() { back(); }
     private void back() {
+        WebView currentReader = reader;
+        if (currentReader == null) {
+            finish();
+            return;
+        }
         if (handlingBack) return;
         handlingBack = true;
-        reader.evaluateJavascript("window.readerBack && window.readerBack()", result -> {
+        currentReader.evaluateJavascript("window.readerBack && window.readerBack()", result -> {
+            if (reader != currentReader) return;
             handlingBack = false;
             if (!"true".equals(result) && !isFinishing()) finish();
         });
     }
     @Override protected void onPause() {
-        reader.evaluateJavascript("window.savePlace && window.savePlace()",null);
+        if (reader != null) reader.evaluateJavascript("window.savePlace && window.savePlace()",null);
         super.onPause();
     }
     @Override protected void onDestroy() {
-        root.removeView(reader); reader.removeJavascriptInterface("BibleAndroid"); reader.destroy(); super.onDestroy();
+        if (reader != null) {
+            root.removeView(reader);
+            reader.removeJavascriptInterface("BibleAndroid");
+            reader.destroy();
+            reader = null;
+        }
+        super.onDestroy();
     }
 }

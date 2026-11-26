@@ -190,7 +190,7 @@ function settings(){
     '<p class="sample">На початку створив Бог небо і землю.</p>');
 }
 function about(){
-  sheetOpen('Про видання','<p class="label">Переклад</p><p>Святійший Патріарх Київський і всієї Руси-України Філарет</p><p class="label">Видання УПЦ Київського Патріархату</p><p class="sub">50 книг Старого Завіту, 27 книг Нового Завіту, додатки та покажчик старозавітних читань на церковних службах.</p><p class="label">Розробник</p><p>Василь Шлемко</p><p class="label">Версія</p><p>2.0.0</p>');
+  sheetOpen('Про видання','<p class="label">Переклад</p><p>Святійший Патріарх Київський і всієї Руси-України Філарет</p><p class="label">Видання УПЦ Київського Патріархату</p><p class="sub">50 книг Старого Завіту, 27 книг Нового Завіту, додатки та покажчик старозавітних читань на церковних службах.</p><p class="label">Розробник</p><p>Василь Шлемко</p><p class="label">Версія</p><p>2.0.1</p>');
 }
 function showBooks(){page.innerHTML=heading('Книги')+segments(sections,section,'section')+field('filter','Знайти книгу',filter)+'<div id="list"></div>';listBooks();}
 function listBooks(){

@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">Біблія УПЦ КП</string>
+    <string name="recovery_title">Читання перервано</string>
+    <string name="recovery_message">Системний компонент читання зупинився. Відкрити Біблію з останнього збереженого місця?</string>
+    <string name="recovery_retry">Відкрити знову</string>
+    <string name="recovery_exit">Закрити</string>
     <color name="green">#25463C</color>
     <style name="ReaderTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#FAF8F2</item>
